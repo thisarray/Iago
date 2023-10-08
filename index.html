@@ -62,12 +62,12 @@ td {
 
 <script>
 /*
- * Size in pixels of each square.
+ * Integer size in pixels of each square.
  */
 const SCALE = 40;
 
 /*
- * Deltas in the x- and y-coordinates corresponding to the eight directions.
+ * Array deltas in the x- and y-coordinates corresponding to the eight directions.
  */
 const DIRECTIONS = [
   [-1, -1],
@@ -80,62 +80,92 @@ const DIRECTIONS = [
   [1, 1]
 ];
 
-const DARK_MARKER = 'X';
-const LIGHT_MARKER = 'O';
-const BLANK_MARKER = ' ';
-
+/*
+ * An immutable representation of the current state.
+ */
 class Board {
+  static DARK_MARKER = 'X';
+  static LIGHT_MARKER = 'O';
+  static BLANK_MARKER = ' ';
+
   constructor(width, height) {
+    if (typeof width !== 'number') {
+      throw new TypeError('width must be a number.');
+    }
+    if (typeof height !== 'number') {
+      throw new TypeError('height must be a number.');
+    }
+
     this.width = Math.max(2, width);
     this.height = Math.max(2, height);
 
-    // Use an Array of String
-    // If using a string, then flipping tiles allocates too many String instances
-    this.cells = new Array(this.width * this.height).fill(BLANK_MARKER);
-    let centerX = Math.floor(this.width / 2) - 1,
-        centerY = Math.floor(this.height / 2) - 1,
-        nw = this.coordinatesToIndex(centerX, centerY),
-        ne = this.coordinatesToIndex(centerX + 1, centerY),
-        sw = this.coordinatesToIndex(centerX, centerY + 1),
-        se = this.coordinatesToIndex(centerX + 1, centerY + 1);
-    this.cells[nw] = LIGHT_MARKER;
-    this.cells[ne] = DARK_MARKER;
-    this.cells[sw] = DARK_MARKER;
-    this.cells[se] = LIGHT_MARKER;
+    // Use an array of strings for the board
+    // Using a string for the board allocates too many String instances while flipping tiles
+    this.cells = new Array(this.width * this.height).fill(Board.BLANK_MARKER);
+    let nwX = Math.floor(this.width / 2) - 1,
+        nwY = Math.floor(this.height / 2) - 1,
+        nw = this._coordinatesToIndex(nwX, nwY),
+        ne = this._coordinatesToIndex(nwX + 1, nwY),
+        sw = this._coordinatesToIndex(nwX, nwY + 1),
+        se = this._coordinatesToIndex(nwX + 1, nwY + 1);
+    this.cells[nw] = Board.LIGHT_MARKER;
+    this.cells[ne] = Board.DARK_MARKER;
+    this.cells[sw] = Board.DARK_MARKER;
+    this.cells[se] = Board.LIGHT_MARKER;
 
     this.done = false;
   }
-  coordinatesToIndex(x, y) {
+
+  /*
+   * Return the index for coordinates (x, y).
+   */
+  _coordinatesToIndex(x, y) {
     return x + (y * this.width);
   }
+
+  /*
+   * Return the integer count of marker on the board.
+   */
   count(marker) {
-    return this.cells.filter(v => (v == marker)).length;
+    return this.cells.filter(v => (v === marker)).length;
   }
-  get(x, y) {
+
+  /*
+   * Return the marker at the coordinates (x, y).
+   */
+  getMarker(x, y) {
+    if (typeof x !== 'number') {
+      throw new TypeError('x must be a number.');
+    }
+    if (typeof y !== 'number') {
+      throw new TypeError('y must be a number.');
+    }
+
     if (x < 0) {
-      return BLANK_MARKER;
+      return Board.BLANK_MARKER;
     }
     if (y < 0) {
-      return BLANK_MARKER;
+      return Board.BLANK_MARKER;
     }
-    if (x >= this.width) {
-      return BLANK_MARKER;
+    if (this.width <= x) {
+      return Board.BLANK_MARKER;
     }
-    if (y >= this.height) {
-      return BLANK_MARKER;
+    if (this.height <= y) {
+      return Board.BLANK_MARKER;
     }
-    return this.cells[this.coordinatesToIndex(x, y)];
+    return this.cells[this._coordinatesToIndex(x, y)];
   }
 
   /*
    * Return a string containing the run of markers starting at (x + dx, y + dy).
-   * dx and dy are based on the deltas at DIRECTIONS[index].
+   * dx and dy are based on the deltas in DIRECTIONS[index].
    */
-  run(x, y, index) {
+  getRun(x, y, index) {
     let [dx, dy] = DIRECTIONS[index],
         result = [],
         currentX = x + dx,
-        currentY = y + dy;
+        currentY = y + dy,
+        marker;
     while (true) {
       if (currentX < 0) {
         break;
@@ -143,19 +173,19 @@ class Board {
       if (currentY < 0) {
         break;
       }
-      if (currentX >= this.width) {
+      if (this.width <= currentX) {
         break;
       }
-      if (currentY >= this.height) {
+      if (this.height <= currentY) {
         break;
       }
 
-      let marker = this.get(currentX, currentY);
-      if (marker == BLANK_MARKER) {
-        break;
+      marker = this.getMarker(currentX, currentY);
+      if ((marker === Board.DARK_MARKER) || (marker === Board.LIGHT_MARKER)) {
+        result.push(marker);
       }
       else {
-        result.push(marker);
+        break;
       }
 
       currentX += dx;
@@ -166,82 +196,7 @@ class Board {
   }
 
   /*
-   * Flip markers starting at (x + dx, y + dy) and stop when sentinel is encountered.
-   * dx and dy are based on the deltas at DIRECTIONS[index].
-   */
-  flip(x, y, index, sentinel) {
-    let [dx, dy] = DIRECTIONS[index],
-        currentX = x + dx,
-        currentY = y + dy;
-    while (true) {
-      if (currentX < 0) {
-        break;
-      }
-      if (currentY < 0) {
-        break;
-      }
-      if (currentX >= this.width) {
-        break;
-      }
-      if (currentY >= this.height) {
-        break;
-      }
-
-      let cellIndex = this.coordinatesToIndex(currentX, currentY),
-          marker = this.cells[cellIndex];
-      if (marker == sentinel) {
-        break;
-      }
-      else {
-        if (marker == DARK_MARKER) {
-          this.cells[cellIndex] = LIGHT_MARKER;
-        }
-        else if (marker == LIGHT_MARKER) {
-          this.cells[cellIndex] = DARK_MARKER;
-        }
-        else {
-          // marker is BLANK_MARKER or invalid
-          break;
-        }
-      }
-
-      currentX += dx;
-      currentY += dy;
-    }
-  }
-
-
-  /*
-   * Return dark for light marker and light for dark marker.
-   */
-  static getOpposingMarker(marker) {
-    if (marker == DARK_MARKER) {
-      return LIGHT_MARKER;
-    }
-    else if (marker == LIGHT_MARKER) {
-      return DARK_MARKER;
-    }
-    else {
-      // marker is BLANK_MARKER or invalid
-      console.assert(false, {msg: 'Invalid marker.'});
-    }
-  }
-
-  /*
-   * Return the count of opposing markers terminated by marker in run.
-   * If the count is 0, then the run is not valid.
-   */
-  static countFlipped(run, marker) {
-    let index = run.indexOf(marker),
-        opposingMarker = Board.getOpposingMarker(marker);
-    if ((index > 0) && (run.substring(0, index) == opposingMarker.repeat(index))) {
-      return index;
-    }
-    return 0;
-  }
-
-  /*
-   * Return true if placing marker at (x, y) is a valid move.
+   * Return true if placing marker at the coordinates (x, y) is a valid move.
    */
   isValid(x, y, marker) {
     if (x < 0) {
@@ -250,22 +205,21 @@ class Board {
     if (y < 0) {
       return false;
     }
-    if (x >= this.width) {
+    if (this.width <= x) {
       return false;
     }
-    if (y >= this.height) {
+    if (this.height <= y) {
       return false;
     }
-    if ((marker != DARK_MARKER) && (marker != LIGHT_MARKER)) {
+    if ((marker !== Board.DARK_MARKER) && (marker !== Board.LIGHT_MARKER)) {
       return false;
     }
-    if (this.get(x, y) != BLANK_MARKER) {
+    if (this.getMarker(x, y) !== Board.BLANK_MARKER) {
       return false;
     }
 
     for (let i = 0; i < DIRECTIONS.length; i++) {
-      let run = this.run(x, y, i);
-      if (Board.countFlipped(run, marker) > 0) {
+      if (Board.countFlipped(this.getRun(x, y, i), marker) > 0) {
         return true;
       }
     }
@@ -273,7 +227,52 @@ class Board {
   }
 
   /*
-   * Return a new Board instance from placing marker at (x, y).
+   * Flip markers starting at (x + dx, y + dy) and stop when sentinel is encountered.
+   * dx and dy are based on the deltas in DIRECTIONS[index].
+   */
+  _flip(x, y, index, sentinel) {
+    let [dx, dy] = DIRECTIONS[index],
+        currentX = x + dx,
+        currentY = y + dy,
+        cellIndex, marker;
+    while (true) {
+      if (currentX < 0) {
+        break;
+      }
+      if (currentY < 0) {
+        break;
+      }
+      if (this.width <= currentX) {
+        break;
+      }
+      if (this.height <= currentY) {
+        break;
+      }
+
+      cellIndex = this._coordinatesToIndex(currentX, currentY);
+      marker = this.cells[cellIndex];
+      if (marker === sentinel) {
+        break;
+      }
+      else if (marker === Board.DARK_MARKER) {
+        this.cells[cellIndex] = Board.LIGHT_MARKER;
+      }
+      else if (marker === Board.LIGHT_MARKER) {
+        this.cells[cellIndex] = Board.DARK_MARKER;
+      }
+      else {
+        // marker is Board.BLANK_MARKER or invalid
+        console.assert(false, {msg: 'Invalid marker.'});
+        break;
+      }
+
+      currentX += dx;
+      currentY += dy;
+    }
+  }
+
+  /*
+   * Return a new Board instance resulting from placing marker at the coordinates (x, y).
    */
   place(x, y, marker) {
     if (this.done) {
@@ -284,24 +283,23 @@ class Board {
     }
 
     let board = new Board(this.width, this.height),
-        index = this.coordinatesToIndex(x, y),
+        index = this._coordinatesToIndex(x, y),
         opposingMarker = Board.getOpposingMarker(marker);
     board.cells = this.cells.slice();
     board.cells[index] = marker;
 
     // Flip tiles as a result of placing marker
     for (let i = 0; i < DIRECTIONS.length; i++) {
-      let run = board.run(x, y, i);
-      if (Board.countFlipped(run, marker) > 0) {
-        board.flip(x, y, i, marker);
+      if (Board.countFlipped(board.getRun(x, y, i), marker) > 0) {
+        board._flip(x, y, i, marker);
       }
     }
 
     // Check if any more valid moves are possible by both players
-    if (board.count(BLANK_MARKER) > 0) {
+    if (board.count(Board.BLANK_MARKER) > 0) {
       for (let x = 0; x < board.width; x++) {
         for (let y = 0; y < board.height; y++) {
-          if (board.get(x, y) == BLANK_MARKER) {
+          if (board.getMarker(x, y) === Board.BLANK_MARKER) {
             if (board.isValid(x, y, marker)) {
               return board;
             }
@@ -320,79 +318,109 @@ class Board {
 
 
   /*
+   * Return dark for light marker and light for dark marker.
+   */
+  static getOpposingMarker(marker) {
+    if (marker === Board.DARK_MARKER) {
+      return Board.LIGHT_MARKER;
+    }
+    else if (marker === Board.LIGHT_MARKER) {
+      return Board.DARK_MARKER;
+    }
+    else {
+      // marker is Board.BLANK_MARKER or invalid
+      console.assert(false, {msg: 'Invalid marker.'});
+    }
+  }
+
+  /*
+   * Return the integer count of opposing markers terminated by marker in run.
+   * If the count is 0, then the run is not valid.
+   */
+  static countFlipped(run, marker) {
+    let index = run.indexOf(marker),
+        opposingMarker = Board.getOpposingMarker(marker);
+    if ((index > 0) && (run.substring(0, index) === opposingMarker.repeat(index))) {
+      return index;
+    }
+    return 0;
+  }
+
+
+  /*
    * A short test suite to confirm the Board class works.
    */
   static test() {
-    console.assert(Board.getOpposingMarker(DARK_MARKER) == LIGHT_MARKER,
+    console.assert(Board.getOpposingMarker(Board.DARK_MARKER) === Board.LIGHT_MARKER,
                    {msg: 'Board.getOpposingMarker() failed.'});
-    console.assert(Board.getOpposingMarker(LIGHT_MARKER) == DARK_MARKER,
+    console.assert(Board.getOpposingMarker(Board.LIGHT_MARKER) === Board.DARK_MARKER,
                    {msg: 'Board.getOpposingMarker() failed.'});
 
     for (let [run, marker, expected] of [
-      ['', DARK_MARKER, 0],
-      ['', LIGHT_MARKER, 0],
-      ['bar', DARK_MARKER, 0],
-      ['BAZ', LIGHT_MARKER, 0],
-      ['foo', LIGHT_MARKER, 0],
-      ['FOO', LIGHT_MARKER, 0],
-      [BLANK_MARKER, DARK_MARKER, 0],
-      [BLANK_MARKER, LIGHT_MARKER, 0],
-      [DARK_MARKER, DARK_MARKER, 0],
-      [LIGHT_MARKER, LIGHT_MARKER, 0],
-      [LIGHT_MARKER, DARK_MARKER, 0],
-      [DARK_MARKER, LIGHT_MARKER, 0],
-      [LIGHT_MARKER.repeat(2), DARK_MARKER, 0],
-      [DARK_MARKER.repeat(4), LIGHT_MARKER, 0],
-      [LIGHT_MARKER + DARK_MARKER, DARK_MARKER, 1],
-      [DARK_MARKER + LIGHT_MARKER, LIGHT_MARKER, 1],
-      [LIGHT_MARKER.repeat(3) + DARK_MARKER, DARK_MARKER, 3],
-      [DARK_MARKER.repeat(5) + LIGHT_MARKER, LIGHT_MARKER, 5],
-      [BLANK_MARKER + LIGHT_MARKER + DARK_MARKER, DARK_MARKER, 0],
-      [BLANK_MARKER + DARK_MARKER + LIGHT_MARKER, LIGHT_MARKER, 0],
-      [BLANK_MARKER + LIGHT_MARKER.repeat(3) + DARK_MARKER, DARK_MARKER, 0],
-      [BLANK_MARKER + DARK_MARKER.repeat(5) + LIGHT_MARKER, LIGHT_MARKER, 0],
-      [DARK_MARKER + LIGHT_MARKER + DARK_MARKER, DARK_MARKER, 0],
-      [LIGHT_MARKER + DARK_MARKER + LIGHT_MARKER, LIGHT_MARKER, 0],
-      [DARK_MARKER + LIGHT_MARKER.repeat(3) + DARK_MARKER, DARK_MARKER, 0],
-      [LIGHT_MARKER + DARK_MARKER.repeat(5) + LIGHT_MARKER, LIGHT_MARKER, 0]]) {
-      console.assert(Board.countFlipped(run, marker) == expected,
+      ['', Board.DARK_MARKER, 0],
+      ['', Board.LIGHT_MARKER, 0],
+      ['bar', Board.DARK_MARKER, 0],
+      ['BAZ', Board.LIGHT_MARKER, 0],
+      ['foo', Board.LIGHT_MARKER, 0],
+      ['FOO', Board.LIGHT_MARKER, 0],
+      [Board.BLANK_MARKER, Board.DARK_MARKER, 0],
+      [Board.BLANK_MARKER, Board.LIGHT_MARKER, 0],
+      [Board.DARK_MARKER, Board.DARK_MARKER, 0],
+      [Board.LIGHT_MARKER, Board.LIGHT_MARKER, 0],
+      [Board.LIGHT_MARKER, Board.DARK_MARKER, 0],
+      [Board.DARK_MARKER, Board.LIGHT_MARKER, 0],
+      [Board.LIGHT_MARKER.repeat(2), Board.DARK_MARKER, 0],
+      [Board.DARK_MARKER.repeat(4), Board.LIGHT_MARKER, 0],
+      [Board.LIGHT_MARKER + Board.DARK_MARKER, Board.DARK_MARKER, 1],
+      [Board.DARK_MARKER + Board.LIGHT_MARKER, Board.LIGHT_MARKER, 1],
+      [Board.LIGHT_MARKER.repeat(3) + Board.DARK_MARKER, Board.DARK_MARKER, 3],
+      [Board.DARK_MARKER.repeat(5) + Board.LIGHT_MARKER, Board.LIGHT_MARKER, 5],
+      [Board.BLANK_MARKER + Board.LIGHT_MARKER + Board.DARK_MARKER, Board.DARK_MARKER, 0],
+      [Board.BLANK_MARKER + Board.DARK_MARKER + Board.LIGHT_MARKER, Board.LIGHT_MARKER, 0],
+      [Board.BLANK_MARKER + Board.LIGHT_MARKER.repeat(3) + Board.DARK_MARKER, Board.DARK_MARKER, 0],
+      [Board.BLANK_MARKER + Board.DARK_MARKER.repeat(5) + Board.LIGHT_MARKER, Board.LIGHT_MARKER, 0],
+      [Board.DARK_MARKER + Board.LIGHT_MARKER + Board.DARK_MARKER, Board.DARK_MARKER, 0],
+      [Board.LIGHT_MARKER + Board.DARK_MARKER + Board.LIGHT_MARKER, Board.LIGHT_MARKER, 0],
+      [Board.DARK_MARKER + Board.LIGHT_MARKER.repeat(3) + Board.DARK_MARKER, Board.DARK_MARKER, 0],
+      [Board.LIGHT_MARKER + Board.DARK_MARKER.repeat(5) + Board.LIGHT_MARKER, Board.LIGHT_MARKER, 0]]) {
+      console.assert(Board.countFlipped(run, marker) === expected,
                      {msg: 'Board.countFlipped() failed.'});
     }
 
     let board = new Board(8, 8);
-    console.assert(board.width == 8,
-                   {msg: 'board has wrong width.'});
-    console.assert(board.height == 8,
-                   {msg: 'board has wrong height.'});
+    console.assert(board.width === 8,
+                   {msg: 'board.width is incorrect.'});
+    console.assert(board.height === 8,
+                   {msg: 'board.height is incorrect.'});
     console.assert(!board.done,
-                   {msg: 'board unexpectedly done.'});
-    console.assert(board.cells.slice(0, 27).join('') == BLANK_MARKER.repeat(27),
-                   {msg: 'board.cells is not initialized.'});
-    console.assert(board.cells.slice(27, 29).join('') == (LIGHT_MARKER + DARK_MARKER),
-                   {msg: 'board.cells is not initialized.'});
-    console.assert(board.cells.slice(29, 35).join('') == BLANK_MARKER.repeat(6),
-                   {msg: 'board.cells is not initialized.'});
-    console.assert(board.cells.slice(35, 37).join('') == (DARK_MARKER + LIGHT_MARKER),
-                   {msg: 'board.cells is not initialized.'});
-    console.assert(board.cells.slice(37).join('') == BLANK_MARKER.repeat(27),
-                   {msg: 'board.cells is not initialized.'});
-    console.assert(board.count('Foo') == 0,
-                   {msg: 'board has wrong count.'});
-    console.assert(board.count('bar') == 0,
-                   {msg: 'board has wrong count.'});
-    console.assert(board.count(DARK_MARKER) == 2,
-                   {msg: 'board has wrong count.'});
-    console.assert(board.count(LIGHT_MARKER) == 2,
-                   {msg: 'board has wrong count.'});
-    console.assert(board.count(BLANK_MARKER) == 60,
-                   {msg: 'board has wrong count.'});
+                   {msg: 'board.done is incorrect.'});
+    console.assert(board.cells.slice(0, 27).join('') === Board.BLANK_MARKER.repeat(27),
+                   {msg: 'board.cells is incorrect.'});
+    console.assert(board.cells.slice(27, 29).join('') === (Board.LIGHT_MARKER + Board.DARK_MARKER),
+                   {msg: 'board.cells is incorrect.'});
+    console.assert(board.cells.slice(29, 35).join('') === Board.BLANK_MARKER.repeat(6),
+                   {msg: 'board.cells is incorrect.'});
+    console.assert(board.cells.slice(35, 37).join('') === (Board.DARK_MARKER + Board.LIGHT_MARKER),
+                   {msg: 'board.cells is incorrect.'});
+    console.assert(board.cells.slice(37).join('') === Board.BLANK_MARKER.repeat(27),
+                   {msg: 'board.cells is incorrect.'});
+    console.assert(board.count('Foo') === 0,
+                   {msg: 'board.count() failed.'});
+    console.assert(board.count('bar') === 0,
+                   {msg: 'board.count() failed.'});
+    console.assert(board.count(Board.DARK_MARKER) === 2,
+                   {msg: 'board.count() failed.'});
+    console.assert(board.count(Board.LIGHT_MARKER) === 2,
+                   {msg: 'board.count() failed.'});
+    console.assert(board.count(Board.BLANK_MARKER) === 60,
+                   {msg: 'board.count() failed.'});
 
     for (let i = 0; i < DIRECTIONS.length; i++) {
       for (let j = 0; j < 8; j++) {
-        console.assert(board.run(0, j, i) == '',
-                       {msg: 'board.run() failed.'});
-        console.assert(board.run(j, 0, i) == '',
-                       {msg: 'board.run() failed.'});
+        console.assert(board.getRun(0, j, i) === '',
+                       {msg: 'board.getRun() failed.'});
+        console.assert(board.getRun(j, 0, i) === '',
+                       {msg: 'board.getRun() failed.'});
       }
     }
     for (let [x, y, i, expected] of [
@@ -400,220 +428,220 @@ class Board {
       [2, 2, 2, ''],
       [6, 6, 6, ''],
       [7, 7, 7, ''],
-      [2, 2, 7, LIGHT_MARKER + LIGHT_MARKER],
-      [3, 2, 6, LIGHT_MARKER + DARK_MARKER],
-      [3, 2, 7, DARK_MARKER],
-      [4, 2, 5, LIGHT_MARKER],
-      [4, 2, 6, DARK_MARKER + LIGHT_MARKER],
-      [5, 2, 5, DARK_MARKER + DARK_MARKER],
-      [2, 3, 4, LIGHT_MARKER + DARK_MARKER],
-      [3, 3, 4, DARK_MARKER],
-      [4, 3, 3, LIGHT_MARKER],
-      [5, 3, 3, DARK_MARKER + LIGHT_MARKER],
-      [2, 4, 4, DARK_MARKER + LIGHT_MARKER],
-      [3, 4, 4, LIGHT_MARKER],
-      [4, 4, 3, DARK_MARKER],
-      [5, 4, 3, LIGHT_MARKER + DARK_MARKER],
-      [2, 5, 2, DARK_MARKER + DARK_MARKER],
-      [3, 5, 1, DARK_MARKER + LIGHT_MARKER],
-      [3, 5, 2, LIGHT_MARKER],
-      [4, 5, 0, DARK_MARKER],
-      [4, 5, 1, LIGHT_MARKER + DARK_MARKER],
-      [5, 5, 0, LIGHT_MARKER + LIGHT_MARKER]]) {
-      console.assert(board.run(x, y, i) == expected,
-                     {msg: 'board.run() failed.'});
+      [2, 2, 7, Board.LIGHT_MARKER + Board.LIGHT_MARKER],
+      [3, 2, 6, Board.LIGHT_MARKER + Board.DARK_MARKER],
+      [3, 2, 7, Board.DARK_MARKER],
+      [4, 2, 5, Board.LIGHT_MARKER],
+      [4, 2, 6, Board.DARK_MARKER + Board.LIGHT_MARKER],
+      [5, 2, 5, Board.DARK_MARKER + Board.DARK_MARKER],
+      [2, 3, 4, Board.LIGHT_MARKER + Board.DARK_MARKER],
+      [3, 3, 4, Board.DARK_MARKER],
+      [4, 3, 3, Board.LIGHT_MARKER],
+      [5, 3, 3, Board.DARK_MARKER + Board.LIGHT_MARKER],
+      [2, 4, 4, Board.DARK_MARKER + Board.LIGHT_MARKER],
+      [3, 4, 4, Board.LIGHT_MARKER],
+      [4, 4, 3, Board.DARK_MARKER],
+      [5, 4, 3, Board.LIGHT_MARKER + Board.DARK_MARKER],
+      [2, 5, 2, Board.DARK_MARKER + Board.DARK_MARKER],
+      [3, 5, 1, Board.DARK_MARKER + Board.LIGHT_MARKER],
+      [3, 5, 2, Board.LIGHT_MARKER],
+      [4, 5, 0, Board.DARK_MARKER],
+      [4, 5, 1, Board.LIGHT_MARKER + Board.DARK_MARKER],
+      [5, 5, 0, Board.LIGHT_MARKER + Board.LIGHT_MARKER]]) {
+      console.assert(board.getRun(x, y, i) === expected,
+                     {msg: 'board.getRun() failed.'});
     }
 
     for (let x = -1; x <= board.width; x++) {
       for (let y = -1; y <= board.height; y++) {
-        if (((x == 3) && (y == 3)) || ((x == 4) && (y == 4))) {
-          console.assert(board.get(x, y) == LIGHT_MARKER,
-                         {msg: 'board.get() failed.'});
-          console.assert(!board.isValid(x, y, DARK_MARKER),
+        if (((x === 3) && (y === 3)) || ((x === 4) && (y === 4))) {
+          console.assert(board.getMarker(x, y) === Board.LIGHT_MARKER,
+                         {msg: 'board.getMarker() failed.'});
+          console.assert(!board.isValid(x, y, Board.DARK_MARKER),
                          {msg: 'board.isValid() failed.'});
-          console.assert(!board.isValid(x, y, LIGHT_MARKER),
+          console.assert(!board.isValid(x, y, Board.LIGHT_MARKER),
                          {msg: 'board.isValid() failed.'});
-          console.assert(board.place(x, y, DARK_MARKER) == board,
+          console.assert(board.place(x, y, Board.DARK_MARKER) === board,
                          {msg: 'board.place() failed.'});
-          console.assert(board.place(x, y, LIGHT_MARKER) == board,
+          console.assert(board.place(x, y, Board.LIGHT_MARKER) === board,
                          {msg: 'board.place() failed.'});
         }
-        else if (((x == 4) && (y == 3)) || ((x == 3) && (y == 4))) {
-          console.assert(board.get(x, y) == DARK_MARKER,
-                         {msg: 'board.get() failed.'});
-          console.assert(!board.isValid(x, y, DARK_MARKER),
+        else if (((x === 4) && (y === 3)) || ((x === 3) && (y === 4))) {
+          console.assert(board.getMarker(x, y) === Board.DARK_MARKER,
+                         {msg: 'board.getMarker() failed.'});
+          console.assert(!board.isValid(x, y, Board.DARK_MARKER),
                          {msg: 'board.isValid() failed.'});
-          console.assert(!board.isValid(x, y, LIGHT_MARKER),
+          console.assert(!board.isValid(x, y, Board.LIGHT_MARKER),
                          {msg: 'board.isValid() failed.'});
-          console.assert(board.place(x, y, DARK_MARKER) == board,
+          console.assert(board.place(x, y, Board.DARK_MARKER) === board,
                          {msg: 'board.place() failed.'});
-          console.assert(board.place(x, y, LIGHT_MARKER) == board,
+          console.assert(board.place(x, y, Board.LIGHT_MARKER) === board,
                          {msg: 'board.place() failed.'});
         }
         else {
-          console.assert(board.get(x, y) == BLANK_MARKER,
-                         {msg: 'board.get() failed.'});
+          console.assert(board.getMarker(x, y) === Board.BLANK_MARKER,
+                         {msg: 'board.getMarker() failed.'});
         }
 
-        if (((x == 3) && (y == 2)) || ((x == 2) && (y == 3)) || ((x == 5) && (y == 4)) || ((x == 4) && (y == 5))) {
-          console.assert(board.isValid(x, y, DARK_MARKER),
+        if (((x === 3) && (y === 2)) || ((x === 2) && (y === 3)) || ((x === 5) && (y === 4)) || ((x === 4) && (y === 5))) {
+          console.assert(board.isValid(x, y, Board.DARK_MARKER),
                          {msg: 'board.isValid() failed.'});
         }
         else {
-          console.assert(!board.isValid(x, y, DARK_MARKER),
+          console.assert(!board.isValid(x, y, Board.DARK_MARKER),
                          {msg: 'board.isValid() failed.'});
-          console.assert(board.place(x, y, DARK_MARKER) == board,
+          console.assert(board.place(x, y, Board.DARK_MARKER) === board,
                          {msg: 'board.place() failed.'});
         }
-        if (((x == 4) && (y == 2)) || ((x == 5) && (y == 3)) || ((x == 2) && (y == 4)) || ((x == 3) && (y == 5))) {
-          console.assert(board.isValid(x, y, LIGHT_MARKER),
+        if (((x === 4) && (y === 2)) || ((x === 5) && (y === 3)) || ((x === 2) && (y === 4)) || ((x === 3) && (y === 5))) {
+          console.assert(board.isValid(x, y, Board.LIGHT_MARKER),
                          {msg: 'board.isValid() failed.'});
         }
         else {
-          console.assert(!board.isValid(x, y, LIGHT_MARKER),
+          console.assert(!board.isValid(x, y, Board.LIGHT_MARKER),
                          {msg: 'board.isValid() failed.'});
-          console.assert(board.place(x, y, LIGHT_MARKER) == board,
+          console.assert(board.place(x, y, Board.LIGHT_MARKER) === board,
                          {msg: 'board.place() failed.'});
         }
       }
     }
 
-    board = board.place(3, 2, DARK_MARKER);
+    board = board.place(3, 2, Board.DARK_MARKER);
     console.assert(!board.done,
-                   {msg: 'board unexpectedly done.'});
-    console.assert(board.count(DARK_MARKER) == 4,
-                   {msg: 'board has wrong count.'});
-    console.assert(board.count(LIGHT_MARKER) == 1,
-                   {msg: 'board has wrong count.'});
-    console.assert(board.count(BLANK_MARKER) == 59,
-                   {msg: 'board has wrong count.'});
+                   {msg: 'board.done is incorrect.'});
+    console.assert(board.count(Board.DARK_MARKER) === 4,
+                   {msg: 'board.count() failed.'});
+    console.assert(board.count(Board.LIGHT_MARKER) === 1,
+                   {msg: 'board.count() failed.'});
+    console.assert(board.count(Board.BLANK_MARKER) === 59,
+                   {msg: 'board.count() failed.'});
     for (let x = -1; x <= board.width; x++) {
       for (let y = -1; y <= board.height; y++) {
-        if ((x == 4) && (y == 4)) {
-          console.assert(board.get(x, y) == LIGHT_MARKER,
-                         {msg: 'board.get() failed.'});
+        if ((x === 4) && (y === 4)) {
+          console.assert(board.getMarker(x, y) === Board.LIGHT_MARKER,
+                         {msg: 'board.getMarker() failed.'});
         }
-        else if (((x == 3) && (y == 2)) || ((x == 3) && (y == 3)) || ((x == 3) && (y == 4)) || ((x == 4) && (y == 3))) {
-          console.assert(board.get(x, y) == DARK_MARKER,
-                         {msg: 'board.get() failed.'});
+        else if (((x === 3) && (y === 2)) || ((x === 3) && (y === 3)) || ((x === 3) && (y === 4)) || ((x === 4) && (y === 3))) {
+          console.assert(board.getMarker(x, y) === Board.DARK_MARKER,
+                         {msg: 'board.getMarker() failed.'});
         }
         else {
-          console.assert(board.get(x, y) == BLANK_MARKER,
-                         {msg: 'board.get() failed.'});
+          console.assert(board.getMarker(x, y) === Board.BLANK_MARKER,
+                         {msg: 'board.getMarker() failed.'});
         }
 
-        if (((x == 5) && (y == 4)) || ((x == 4) && (y == 5)) || ((x == 5) && (y == 5))) {
-          console.assert(board.isValid(x, y, DARK_MARKER),
+        if (((x === 5) && (y === 4)) || ((x === 4) && (y === 5)) || ((x === 5) && (y === 5))) {
+          console.assert(board.isValid(x, y, Board.DARK_MARKER),
                          {msg: 'board.isValid() failed.'});
         }
         else {
-          console.assert(!board.isValid(x, y, DARK_MARKER),
+          console.assert(!board.isValid(x, y, Board.DARK_MARKER),
                          {msg: 'board.isValid() failed.'});
-          console.assert(board.place(x, y, DARK_MARKER) == board,
+          console.assert(board.place(x, y, Board.DARK_MARKER) === board,
                          {msg: 'board.place() failed.'});
         }
-        if (((x == 2) && (y == 2)) || ((x == 4) && (y == 2)) || ((x == 2) && (y == 4))) {
-          console.assert(board.isValid(x, y, LIGHT_MARKER),
+        if (((x === 2) && (y === 2)) || ((x === 4) && (y === 2)) || ((x === 2) && (y === 4))) {
+          console.assert(board.isValid(x, y, Board.LIGHT_MARKER),
                          {msg: 'board.isValid() failed.'});
         }
         else {
-          console.assert(!board.isValid(x, y, LIGHT_MARKER),
+          console.assert(!board.isValid(x, y, Board.LIGHT_MARKER),
                          {msg: 'board.isValid() failed.'});
-          console.assert(board.place(x, y, LIGHT_MARKER) == board,
+          console.assert(board.place(x, y, Board.LIGHT_MARKER) === board,
                          {msg: 'board.place() failed.'});
         }
       }
     }
 
-    board = board.place(2, 4, LIGHT_MARKER);
+    board = board.place(2, 4, Board.LIGHT_MARKER);
     console.assert(!board.done,
-                   {msg: 'board unexpectedly done.'});
-    console.assert(board.count(DARK_MARKER) == 3,
-                   {msg: 'board has wrong count.'});
-    console.assert(board.count(LIGHT_MARKER) == 3,
-                   {msg: 'board has wrong count.'});
-    console.assert(board.count(BLANK_MARKER) == 58,
-                   {msg: 'board has wrong count.'});
+                   {msg: 'board.done is incorrect.'});
+    console.assert(board.count(Board.DARK_MARKER) === 3,
+                   {msg: 'board.count() failed.'});
+    console.assert(board.count(Board.LIGHT_MARKER) === 3,
+                   {msg: 'board.count() failed.'});
+    console.assert(board.count(Board.BLANK_MARKER) === 58,
+                   {msg: 'board.count() failed.'});
     for (let x = -1; x <= board.width; x++) {
       for (let y = -1; y <= board.height; y++) {
-        if (((x == 2) && (y == 4)) || ((x == 3) && (y == 4)) || ((x == 4) && (y == 4))) {
-          console.assert(board.get(x, y) == LIGHT_MARKER,
-                         {msg: 'board.get() failed.'});
+        if (((x === 2) && (y === 4)) || ((x === 3) && (y === 4)) || ((x === 4) && (y === 4))) {
+          console.assert(board.getMarker(x, y) === Board.LIGHT_MARKER,
+                         {msg: 'board.getMarker() failed.'});
         }
-        else if (((x == 3) && (y == 2)) || ((x == 3) && (y == 3)) || ((x == 4) && (y == 3))) {
-          console.assert(board.get(x, y) == DARK_MARKER,
-                         {msg: 'board.get() failed.'});
+        else if (((x === 3) && (y === 2)) || ((x === 3) && (y === 3)) || ((x === 4) && (y === 3))) {
+          console.assert(board.getMarker(x, y) === Board.DARK_MARKER,
+                         {msg: 'board.getMarker() failed.'});
         }
         else {
-          console.assert(board.get(x, y) == BLANK_MARKER,
-                         {msg: 'board.get() failed.'});
+          console.assert(board.getMarker(x, y) === Board.BLANK_MARKER,
+                         {msg: 'board.getMarker() failed.'});
         }
 
-        if (((x == 1) && (y == 5)) || ((x == 2) && (y == 5)) || ((x == 3) && (y == 5)) || ((x == 4) && (y == 5)) || ((x == 5) && (y == 5))) {
-          console.assert(board.isValid(x, y, DARK_MARKER),
+        if (((x === 1) && (y === 5)) || ((x === 2) && (y === 5)) || ((x === 3) && (y === 5)) || ((x === 4) && (y === 5)) || ((x === 5) && (y === 5))) {
+          console.assert(board.isValid(x, y, Board.DARK_MARKER),
                          {msg: 'board.isValid() failed.'});
         }
         else {
-          console.assert(!board.isValid(x, y, DARK_MARKER),
+          console.assert(!board.isValid(x, y, Board.DARK_MARKER),
                          {msg: 'board.isValid() failed.'});
-          console.assert(board.place(x, y, DARK_MARKER) == board,
+          console.assert(board.place(x, y, Board.DARK_MARKER) === board,
                          {msg: 'board.place() failed.'});
         }
-        if (((x == 3) && (y == 1)) || ((x == 2) && (y == 2)) || ((x == 4) && (y == 2)) || ((x == 5) && (y == 2))) {
-          console.assert(board.isValid(x, y, LIGHT_MARKER),
+        if (((x === 3) && (y === 1)) || ((x === 2) && (y === 2)) || ((x === 4) && (y === 2)) || ((x === 5) && (y === 2))) {
+          console.assert(board.isValid(x, y, Board.LIGHT_MARKER),
                          {msg: 'board.isValid() failed.'});
         }
         else {
-          console.assert(!board.isValid(x, y, LIGHT_MARKER),
+          console.assert(!board.isValid(x, y, Board.LIGHT_MARKER),
                          {msg: 'board.isValid() failed.'});
-          console.assert(board.place(x, y, LIGHT_MARKER) == board,
+          console.assert(board.place(x, y, Board.LIGHT_MARKER) === board,
                          {msg: 'board.place() failed.'});
         }
       }
     }
 
-    board.cells = new Array(board.width * board.height).fill(LIGHT_MARKER);
-    board.cells[31] = BLANK_MARKER;
-    board.cells[38] = BLANK_MARKER;
-    board.cells[39] = BLANK_MARKER;
-    board.cells[46] = BLANK_MARKER;
-    board.cells[47] = DARK_MARKER;
-    board.cells[54] = DARK_MARKER;
-    board.cells[55] = BLANK_MARKER;
-    board.cells[63] = BLANK_MARKER;
-    board = board.place(7, 7, LIGHT_MARKER);
+    board.cells = new Array(board.width * board.height).fill(Board.LIGHT_MARKER);
+    board.cells[31] = Board.BLANK_MARKER;
+    board.cells[38] = Board.BLANK_MARKER;
+    board.cells[39] = Board.BLANK_MARKER;
+    board.cells[46] = Board.BLANK_MARKER;
+    board.cells[47] = Board.DARK_MARKER;
+    board.cells[54] = Board.DARK_MARKER;
+    board.cells[55] = Board.BLANK_MARKER;
+    board.cells[63] = Board.BLANK_MARKER;
+    board = board.place(7, 7, Board.LIGHT_MARKER);
     console.assert(board.done,
-                   {msg: 'board unexpectedly not done.'});
-    console.assert(board.count(DARK_MARKER) == 1,
-                   {msg: 'board has wrong count.'});
-    console.assert(board.count(LIGHT_MARKER) == 58,
-                   {msg: 'board has wrong count.'});
-    console.assert(board.count(BLANK_MARKER) == 5,
-                   {msg: 'board has wrong count.'});
+                   {msg: 'board.done is incorrect.'});
+    console.assert(board.count(Board.DARK_MARKER) === 1,
+                   {msg: 'board.count() failed.'});
+    console.assert(board.count(Board.LIGHT_MARKER) === 58,
+                   {msg: 'board.count() failed.'});
+    console.assert(board.count(Board.BLANK_MARKER) === 5,
+                   {msg: 'board.count() failed.'});
     for (let x = 0; x < board.width; x++) {
       for (let y = 0; y < board.height; y++) {
-        if (((x == 7) && (y == 3)) || ((x == 6) && (y == 4)) || ((x == 7) && (y == 4)) || ((x == 6) && (y == 5)) || ((x == 7) && (y == 5)) || ((x == 7) && (y == 6))) {
-          if ((x == 7) && (y == 5)) {
-            console.assert(board.get(x, y) == DARK_MARKER,
-                           {msg: 'board.get() failed.'});
+        if (((x === 7) && (y === 3)) || ((x === 6) && (y === 4)) || ((x === 7) && (y === 4)) || ((x === 6) && (y === 5)) || ((x === 7) && (y === 5)) || ((x === 7) && (y === 6))) {
+          if ((x === 7) && (y === 5)) {
+            console.assert(board.getMarker(x, y) === Board.DARK_MARKER,
+                           {msg: 'board.getMarker() failed.'});
           }
           else {
-            console.assert(board.get(x, y) == BLANK_MARKER,
-                           {msg: 'board.get() failed.'});
+            console.assert(board.getMarker(x, y) === Board.BLANK_MARKER,
+                           {msg: 'board.getMarker() failed.'});
           }
         }
         else {
-          console.assert(board.get(x, y) == LIGHT_MARKER,
-                         {msg: 'board.get() failed.'});
+          console.assert(board.getMarker(x, y) === Board.LIGHT_MARKER,
+                         {msg: 'board.getMarker() failed.'});
         }
 
-        console.assert(!board.isValid(x, y, DARK_MARKER),
+        console.assert(!board.isValid(x, y, Board.DARK_MARKER),
                        {msg: 'board.isValid() failed.'});
-        console.assert(!board.isValid(x, y, LIGHT_MARKER),
+        console.assert(!board.isValid(x, y, Board.LIGHT_MARKER),
                        {msg: 'board.isValid() failed.'});
-        console.assert(board.place(x, y, DARK_MARKER) == board,
+        console.assert(board.place(x, y, Board.DARK_MARKER) === board,
                        {msg: 'board.place() failed.'});
-        console.assert(board.place(x, y, LIGHT_MARKER) == board,
+        console.assert(board.place(x, y, Board.LIGHT_MARKER) === board,
                        {msg: 'board.place() failed.'});
       }
     }
@@ -628,13 +656,13 @@ class Strategy {
   }
 
   /*
-   * Return the Array of valid moves.
+   * Return an array of valid moves.
    */
   getMoves(board) {
     let moves = [];
     for (let x = 0; x < board.width; x++) {
       for (let y = 0; y < board.height; y++) {
-        if (board.get(x, y) == BLANK_MARKER) {
+        if (board.getMarker(x, y) === Board.BLANK_MARKER) {
           if (board.isValid(x, y, this.marker)) {
             moves.push({x: x, y: y});
           }
@@ -645,7 +673,7 @@ class Strategy {
   }
 
   /*
-   * Return a Board instance after making a random valid move.
+   * Return a new Board instance after making a random valid move.
    */
   move(board) {
     if (board.done) {
@@ -666,16 +694,16 @@ class Strategy {
 
 class GreedyStrategy extends Strategy {
   /*
-   * Return the Array of valid moves scored based on the count of flipped tiles.
+   * Return an array of valid moves scored based on the count of flipped tiles.
    */
   getMoves(board) {
     let moves = [];
     for (let x = 0; x < board.width; x++) {
       for (let y = 0; y < board.height; y++) {
-        if (board.get(x, y) == BLANK_MARKER) {
+        if (board.getMarker(x, y) === Board.BLANK_MARKER) {
           let score = 0;
           for (let i = 0; i < DIRECTIONS.length; i++) {
-            let run = board.run(x, y, i);
+            let run = board.getRun(x, y, i);
             score += Board.countFlipped(run, this.marker);
           }
           if (score > 0) {
@@ -688,7 +716,7 @@ class GreedyStrategy extends Strategy {
   }
 
   /*
-   * Return a Board instance after making the move that flips the most tiles.
+   * Return a new Board instance after making the move that flips the most tiles.
    */
   move(board) {
     if (board.done) {
@@ -709,13 +737,13 @@ class GreedyStrategy extends Strategy {
 
 class CornerStrategy extends GreedyStrategy {
   /*
-   * Return the Array of valid moves scored based on the count of flipped tiles and corners.
+   * Return an array of valid moves scored based on the count of flipped tiles and corners.
    */
   getMoves(board) {
     let moves = super.getMoves(board);
     for (let i = 0; i < moves.length; i++) {
-      if (((moves[i].x == 0) && (moves[i].y == 0)) || ((moves[i].x == (board.width - 1)) && (moves[i].y == 0)) ||
-          ((moves[i].x == 0) && (moves[i].y == (board.height - 1))) || ((moves[i].x == (board.width - 1)) && (moves[i].y == (board.height - 1)))) {
+      if (((moves[i].x === 0) && (moves[i].y === 0)) || ((moves[i].x === (board.width - 1)) && (moves[i].y === 0)) ||
+          ((moves[i].x === 0) && (moves[i].y === (board.height - 1))) || ((moves[i].x === (board.width - 1)) && (moves[i].y === (board.height - 1)))) {
         moves[i].score += 10;
       }
     }
@@ -725,13 +753,13 @@ class CornerStrategy extends GreedyStrategy {
 
 class SideStrategy extends GreedyStrategy {
   /*
-   * Return the Array of valid moves scored based on the count of flipped tiles and sides.
+   * Return an array of valid moves scored based on the count of flipped tiles and sides.
    */
   getMoves(board) {
     let moves = super.getMoves(board);
     for (let i = 0; i < moves.length; i++) {
-      if ((moves[i].x == 0) || (moves[i].x == (board.width - 1)) ||
-          (moves[i].y == 0) || (moves[i].y == (board.height - 1))) {
+      if ((moves[i].x === 0) || (moves[i].x === (board.width - 1)) ||
+          (moves[i].y === 0) || (moves[i].y === (board.height - 1))) {
         moves[i].score += 10;
       }
     }
@@ -741,7 +769,7 @@ class SideStrategy extends GreedyStrategy {
 
 class PassiveStrategy extends GreedyStrategy {
   /*
-   * Return a Board instance after making the move that flips the least tiles.
+   * Return a new Board instance after making the move that flips the least tiles.
    */
   move(board) {
     if (board.done) {
@@ -755,7 +783,7 @@ class PassiveStrategy extends GreedyStrategy {
     }
 
     // Sort ascending by score
-    moves.sort((a, b) => a.score - b.score);
+    moves.sort((a, b) => (a.score - b.score));
     return board.place(moves[0].x, moves[0].y, this.marker);
   }
 }
@@ -772,20 +800,21 @@ class Display {
     }
     this.score = score;
   }
+
   draw(board, playerMarker) {
-    let dark = board.count(DARK_MARKER),
-        light = board.count(LIGHT_MARKER),
+    let darkCount = board.count(Board.DARK_MARKER),
+        lightCount = board.count(Board.LIGHT_MARKER),
         won = false,
         lost = false;
-    if (playerMarker == DARK_MARKER) {
-      this.score.textContent = `Player: ${dark} dark (${DARK_MARKER}) Computer: ${light} light (${LIGHT_MARKER})`;
-      won = dark > light;
-      lost = dark < light;
+    if (playerMarker === Board.DARK_MARKER) {
+      this.score.textContent = `Player: ${darkCount} dark (${Board.DARK_MARKER}) Computer: ${lightCount} light (${Board.LIGHT_MARKER})`;
+      won = darkCount > lightCount;
+      lost = darkCount < lightCount;
     }
-    else if (playerMarker == LIGHT_MARKER) {
-      this.score.textContent = `Player: ${light} light (${LIGHT_MARKER}) Computer: ${dark} dark (${DARK_MARKER})`;
-      won = light > dark;
-      lost = light < dark;
+    else if (playerMarker === Board.LIGHT_MARKER) {
+      this.score.textContent = `Player: ${lightCount} light (${Board.LIGHT_MARKER}) Computer: ${darkCount} dark (${Board.DARK_MARKER})`;
+      won = lightCount > darkCount;
+      lost = lightCount < darkCount;
     }
 
     if (board.done) {
@@ -815,7 +844,7 @@ class ASCIIDisplay extends Display {
     for (let y = 0; y < board.height; y++) {
       let row = [];
       for (let x = 0; x < board.width; x++) {
-        row.push(board.get(x, y));
+        row.push(board.getMarker(x, y));
       }
       rows.push(row.join(''));
     }
@@ -842,7 +871,7 @@ class CanvasDisplay extends Display {
       target = document.createElement('canvas');
       this.parent.appendChild(target);
     }
-    if ((target.width != width) || (target.height != height)) {
+    if ((target.width !== width) || (target.height !== height)) {
       target.width = width;
       target.height = height;
     }
@@ -853,20 +882,20 @@ class CanvasDisplay extends Display {
 
     for (let y = 0; y < board.height; y++) {
       for (let x = 0; x < board.width; x++) {
-        let marker = board.get(x, y);
-        if (marker == BLANK_MARKER) {
+        let marker = board.getMarker(x, y);
+        if (marker === Board.BLANK_MARKER) {
           if (board.isValid(x, y, playerMarker)) {
             context.fillStyle = this.validColor;
             context.fillRect(x * SCALE, y * SCALE, SCALE, SCALE);
           }
         }
-        else if (marker == DARK_MARKER) {
+        else if (marker === Board.DARK_MARKER) {
           context.fillStyle = this.darkColor;
           context.beginPath();
           context.arc((x * SCALE) + middle, (y * SCALE) + middle, middle - 5, 0, 2 * Math.PI);
           context.fill();
         }
-        else if (marker == LIGHT_MARKER) {
+        else if (marker === Board.LIGHT_MARKER) {
           context.fillStyle = this.lightColor;
           context.beginPath();
           context.arc((x * SCALE) + middle, (y * SCALE) + middle, middle - 5, 0, 2 * Math.PI);
@@ -915,8 +944,8 @@ class TableDisplay extends Display {
       let row = [];
       row.push('  <tr>');
       for (let x = 0; x < board.width; x++) {
-        let marker = board.get(x, y);
-        if (marker == BLANK_MARKER) {
+        let marker = board.getMarker(x, y);
+        if (marker === Board.BLANK_MARKER) {
           if (board.isValid(x, y, playerMarker)) {
             row.push(`    <td class="valid"></td>`);
           }
@@ -924,10 +953,10 @@ class TableDisplay extends Display {
             row.push('    <td></td>');
           }
         }
-        else if (marker == DARK_MARKER) {
+        else if (marker === Board.DARK_MARKER) {
           row.push(`    <td class="dark">${marker}</td>`);
         }
-        else if (marker == LIGHT_MARKER) {
+        else if (marker === Board.LIGHT_MARKER) {
           row.push(`    <td class="light">${marker}</td>`);
         }
         else {
@@ -942,31 +971,32 @@ class TableDisplay extends Display {
   }
 }
 
-let output = document.querySelector('#board');
-let score = document.querySelector('#score');
-//let display = new ASCIIDisplay(output, score);
-let display = new CanvasDisplay(output, score);
-//let display = new TableDisplay(output, score);
+const OUTPUT = document.querySelector('#board');
+const SCORE = document.querySelector('#score');
+//let display = new ASCIIDisplay(OUTPUT, SCORE);
+let display = new CanvasDisplay(OUTPUT, SCORE);
+//let display = new TableDisplay(OUTPUT, SCORE);
 
-let board = null;
-let playerMarker = DARK_MARKER;
-let ai = null;
+let board = null,
+    playerMarker = Board.DARK_MARKER,
+    ai = null;
 function newBoard(event) {
   board = new Board(8, 8);
   if (Math.random() < 0.5) {
-    playerMarker = DARK_MARKER;
+    playerMarker = Board.DARK_MARKER;
     ai = new SideStrategy(Board.getOpposingMarker(playerMarker));
   }
   else {
-    playerMarker = LIGHT_MARKER;
+    playerMarker = Board.LIGHT_MARKER;
     ai = new SideStrategy(Board.getOpposingMarker(playerMarker));
     board = ai.move(board);
   }
   display.draw(board, playerMarker);
 }
 
-output.addEventListener('click', (event) => {
-  let box = output.getBoundingClientRect(),
+OUTPUT.addEventListener('click', (event) => {
+  // Use OUTPUT because event.target may be a child of OUTPUT
+  let box = OUTPUT.getBoundingClientRect(),
       x = Math.min(Math.floor((event.clientX - box.left) / SCALE), board.width - 1),
       y = Math.min(Math.floor((event.clientY - box.top) / SCALE), board.height - 1),
       previous = board;
@@ -976,9 +1006,9 @@ output.addEventListener('click', (event) => {
   if (y < 0) {
     y = 0;
   }
-  board = board.place(x, y, playerMarker);
 
-  if (board != previous) {
+  board = board.place(x, y, playerMarker);
+  if (board !== previous) {
     display.draw(board, playerMarker);
 
     if (!board.done) {
