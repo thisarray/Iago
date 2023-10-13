@@ -12,8 +12,7 @@ body {
 }
 output {
   display: block;
-  margin-bottom: 1em;
-  margin-left: 1em;
+  margin: 1em 0;
 }
 pre {
   font-family: "Courier New", monospace;
@@ -23,18 +22,17 @@ pre {
 }
 table {
   border-collapse: collapse;
-  font-size: 36px;
-  line-height: 36px;
   margin: 0;
   padding: 0;
-  text-align: center;
 }
 td {
   background-color: green;
   border: 1px solid black;
-  color: black;
-  height: 38px;
-  width: 38px;
+  font-size: 32px;
+  text-align: center;
+  /* height and width so resulting cell is 40px by 40px */
+  height: 37px;
+  width: 37px;
 }
 .light {
   color: white;
@@ -161,6 +159,13 @@ class Board {
    * dx and dy are based on the deltas in DIRECTIONS[index].
    */
   getRun(x, y, index) {
+    if (typeof x !== 'number') {
+      throw new TypeError('x must be a number.');
+    }
+    if (typeof y !== 'number') {
+      throw new TypeError('y must be a number.');
+    }
+
     let [dx, dy] = DIRECTIONS[index],
         result = [],
         currentX = x + dx,
@@ -199,6 +204,13 @@ class Board {
    * Return true if placing marker at the coordinates (x, y) is a valid move.
    */
   isValid(x, y, marker) {
+    if (typeof x !== 'number') {
+      throw new TypeError('x must be a number.');
+    }
+    if (typeof y !== 'number') {
+      throw new TypeError('y must be a number.');
+    }
+
     if (x < 0) {
       return false;
     }
@@ -275,6 +287,13 @@ class Board {
    * Return a new Board instance resulting from placing marker at the coordinates (x, y).
    */
   place(x, y, marker) {
+    if (typeof x !== 'number') {
+      throw new TypeError('x must be a number.');
+    }
+    if (typeof y !== 'number') {
+      throw new TypeError('y must be a number.');
+    }
+
     if (this.done) {
       return this;
     }
@@ -854,18 +873,20 @@ class ASCIIDisplay extends Display {
 }
 
 class CanvasDisplay extends Display {
-  constructor(parent, score, darkColor = '#000000', lightColor = '#FFFFFF', backgroundColor = '#00FF00', validColor='#FF69B4') {
+  constructor(parent, score, darkColor = 'black', lightColor = 'white', backgroundColor = 'green', validColor='pink') {
     super(parent, score);
     this.darkColor = darkColor;
     this.lightColor = lightColor;
     this.backgroundColor = backgroundColor;
     this.validColor = validColor;
   }
+
   draw(board, playerMarker) {
     let target = this.parent.querySelector('canvas'),
         width = board.width * SCALE,
         height = board.height * SCALE,
-        middle = SCALE / 2;
+        middle = Math.floor(SCALE / 2),
+        context;
     if (target == null) {
       this.parent.innerHTML = '';
       target = document.createElement('canvas');
@@ -876,10 +897,9 @@ class CanvasDisplay extends Display {
       target.height = height;
     }
 
-    let context = target.getContext('2d');
+    context = target.getContext('2d');
     context.fillStyle = this.backgroundColor;
     context.fillRect(0, 0, width, height);
-
     for (let y = 0; y < board.height; y++) {
       for (let x = 0; x < board.width; x++) {
         let marker = board.getMarker(x, y);
@@ -907,6 +927,7 @@ class CanvasDisplay extends Display {
     // Draw grid lines
     context.lineWidth = 1;
     context.strokeStyle = this.darkColor;
+    // Outer border
     context.beginPath();
     context.moveTo(1, 1);
     context.lineTo(width - 1, 1);
@@ -914,12 +935,14 @@ class CanvasDisplay extends Display {
     context.lineTo(1, height - 1);
     context.closePath();
     context.stroke();
+    // Vertical lines
     for (let x = 1; x < board.width; x++) {
       context.beginPath();
       context.moveTo(x * SCALE, 0);
       context.lineTo(x * SCALE, height);
       context.stroke();
     }
+    // Horizontal lines
     for (let y = 1; y < board.height; y++) {
       context.beginPath();
       context.moveTo(0, y * SCALE);
@@ -939,34 +962,28 @@ class TableDisplay extends Display {
       this.parent.appendChild(target);
     }
 
-    let rows = [];
+    target.innerHTML = '';
     for (let y = 0; y < board.height; y++) {
-      let row = [];
-      row.push('  <tr>');
+      let row = document.createElement('tr');
       for (let x = 0; x < board.width; x++) {
-        let marker = board.getMarker(x, y);
+        let cell = document.createElement('td'),
+            marker = board.getMarker(x, y);
+        cell.appendChild(document.createTextNode(marker));
         if (marker === Board.BLANK_MARKER) {
           if (board.isValid(x, y, playerMarker)) {
-            row.push(`    <td class="valid"></td>`);
-          }
-          else {
-            row.push('    <td></td>');
+            cell.classList.add('valid');
           }
         }
         else if (marker === Board.DARK_MARKER) {
-          row.push(`    <td class="dark">${marker}</td>`);
+          cell.classList.add('dark');
         }
         else if (marker === Board.LIGHT_MARKER) {
-          row.push(`    <td class="light">${marker}</td>`);
+          cell.classList.add('light');
         }
-        else {
-          row.push('    <td></td>');
-        }
+        row.appendChild(cell);
       }
-      row.push('  </tr>');
-      rows.push(row.join('\n'));
+      target.appendChild(row);
     }
-    target.innerHTML = rows.join('\n');
     super.draw(board, playerMarker);
   }
 }
@@ -974,8 +991,8 @@ class TableDisplay extends Display {
 const OUTPUT = document.querySelector('#board');
 const SCORE = document.querySelector('#score');
 //let display = new ASCIIDisplay(OUTPUT, SCORE);
-let display = new CanvasDisplay(OUTPUT, SCORE);
-//let display = new TableDisplay(OUTPUT, SCORE);
+//let display = new CanvasDisplay(OUTPUT, SCORE);
+let display = new TableDisplay(OUTPUT, SCORE);
 
 let board = null,
     playerMarker = Board.DARK_MARKER,
