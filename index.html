@@ -15,10 +15,23 @@ output {
   margin: 1em 0;
 }
 pre {
+  background-color: green;
   font-family: "Courier New", monospace;
   font-size: 40px;
   line-height: 40px;
   text-transform: full-width;
+}
+article {
+  display: grid;
+  grid-auto-rows: 40px;
+  margin: 0;
+  padding: 0;
+}
+section {
+  background-color: green;
+  border: 1px solid black;
+  font-size: 32px;
+  text-align: center;
 }
 table {
   border-collapse: collapse;
@@ -953,6 +966,40 @@ class CanvasDisplay extends Display {
   }
 }
 
+class GridDisplay extends Display {
+  draw(board, playerMarker) {
+    let target = this.parent.querySelector('article');
+    if (target == null) {
+      this.parent.innerHTML = '';
+      target = document.createElement('article');
+      this.parent.appendChild(target);
+    }
+
+    target.style.gridTemplateColumns = `${ SCALE }px `.repeat(board.width).trim();
+    target.innerHTML = '';
+    for (let y = 0; y < board.height; y++) {
+      for (let x = 0; x < board.width; x++) {
+        let cell = document.createElement('section'),
+            marker = board.getMarker(x, y);
+        cell.appendChild(document.createTextNode(marker));
+        if (marker === Board.BLANK_MARKER) {
+          if (board.isValid(x, y, playerMarker)) {
+            cell.classList.add('valid');
+          }
+        }
+        else if (marker === Board.DARK_MARKER) {
+          cell.classList.add('dark');
+        }
+        else if (marker === Board.LIGHT_MARKER) {
+          cell.classList.add('light');
+        }
+        target.appendChild(cell);
+      }
+    }
+    super.draw(board, playerMarker);
+  }
+}
+
 class TableDisplay extends Display {
   draw(board, playerMarker) {
     let target = this.parent.querySelector('table');
@@ -992,7 +1039,8 @@ const OUTPUT = document.querySelector('#board');
 const SCORE = document.querySelector('#score');
 //let display = new ASCIIDisplay(OUTPUT, SCORE);
 //let display = new CanvasDisplay(OUTPUT, SCORE);
-let display = new TableDisplay(OUTPUT, SCORE);
+let display = new GridDisplay(OUTPUT, SCORE);
+//let display = new TableDisplay(OUTPUT, SCORE);
 
 let board = null,
     playerMarker = Board.DARK_MARKER,
