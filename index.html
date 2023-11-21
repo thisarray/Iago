@@ -899,7 +899,7 @@ class CanvasDisplay extends Display {
         width = board.width * SCALE,
         height = board.height * SCALE,
         middle = Math.floor(SCALE / 2),
-        context;
+        context, marker;
     if (target == null) {
       this.parent.innerHTML = '';
       target = document.createElement('canvas');
@@ -915,7 +915,7 @@ class CanvasDisplay extends Display {
     context.fillRect(0, 0, width, height);
     for (let y = 0; y < board.height; y++) {
       for (let x = 0; x < board.width; x++) {
-        let marker = board.getMarker(x, y);
+        marker = board.getMarker(x, y);
         if (marker === Board.BLANK_MARKER) {
           if (board.isValid(x, y, playerMarker)) {
             context.fillStyle = this.validColor;
@@ -962,6 +962,7 @@ class CanvasDisplay extends Display {
       context.lineTo(width, y * SCALE);
       context.stroke();
     }
+
     super.draw(board, playerMarker);
   }
 }
@@ -1052,6 +1053,7 @@ function newBoard(event) {
     ai = new SideStrategy(Board.getOpposingMarker(playerMarker));
   }
   else {
+    // Computer makes the first move
     playerMarker = Board.LIGHT_MARKER;
     ai = new SideStrategy(Board.getOpposingMarker(playerMarker));
     board = ai.move(board);
@@ -1060,6 +1062,10 @@ function newBoard(event) {
 }
 
 OUTPUT.addEventListener('click', (event) => {
+  if (board.done) {
+    return;
+  }
+
   // Use OUTPUT because event.target may be a child of OUTPUT
   let box = OUTPUT.getBoundingClientRect(),
       x = Math.min(Math.floor((event.clientX - box.left) / SCALE), board.width - 1),
@@ -1074,13 +1080,13 @@ OUTPUT.addEventListener('click', (event) => {
 
   board = board.place(x, y, playerMarker);
   if (board !== previous) {
-    display.draw(board, playerMarker);
-
+    // If the player actually changed the board (didn't click on an occupied square)
     if (!board.done) {
       board = ai.move(board);
-      display.draw(board, playerMarker);
     }
   }
+
+  display.draw(board, playerMarker);
 });
 document.querySelector('#new').addEventListener('click', newBoard);
 
